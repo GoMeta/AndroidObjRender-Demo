@@ -17,6 +17,7 @@ package io.gometa.examples.objrenderdemo
 
 import android.arch.lifecycle.Observer
 import android.arch.lifecycle.ViewModelProviders
+import android.graphics.Color
 import android.graphics.PointF
 import android.opengl.GLES20
 import android.opengl.GLSurfaceView
@@ -49,6 +50,7 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
 
     private val objSelectorAdapter = ObjSelectorAdapter()
     private var projectionRatio: Float = 1f
+    private val rotationMatrix = FloatArray(16)
     private val anchorMatrix = FloatArray(16)
     private val viewMatrix = FloatArray(16)
     private val projectionMatrix = FloatArray(16)
@@ -115,6 +117,10 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
         tumbStonedRenderers?.destroy()
         tumbStonedRenderers = null
 
+        GLES20.glClearColor(Color.red(objSelectorAdapter.selectedItemBackgroundColor) / 255f,
+            Color.green(objSelectorAdapter.selectedItemBackgroundColor) / 255f,
+            Color.blue(objSelectorAdapter.selectedItemBackgroundColor) / 255f,
+            1f)
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
         val renderer = renderer
         if (renderer == null) {
@@ -167,10 +173,13 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
             }
             MotionEvent.ACTION_MOVE -> {
                 lastTouchPoint?.let {
-                    val dx = (event.x - it.x) / 100f
-                    val dy = (event.y - it.y) / 100f
-                    Matrix.rotateM(anchorMatrix, 0, dx, 0f, 1f, 0f)
-                    Matrix.rotateM(anchorMatrix, 0, dy, 1f, 0f, 0f)
+                    val dx = (event.x - it.x)
+                    val dy = (event.y - it.y)
+                    Matrix.setIdentityM(anchorMatrix, 0)
+                    rect3D?.apply {
+                        Matrix.translateM(anchorMatrix, 0, -centerX, -centerY, -centerZ)
+                        Matrix.rotateM(anchorMatrix, 0, dx, 0f, 1f, 0f)
+                    }
                 }
             }
             MotionEvent.ACTION_UP -> {

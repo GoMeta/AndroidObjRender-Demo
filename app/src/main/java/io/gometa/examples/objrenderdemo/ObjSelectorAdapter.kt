@@ -53,6 +53,9 @@ class ObjSelectorAdapter : RecyclerView.Adapter<ObjSelectorAdapter.ViewHolder>()
             field = value
             onSelectedAssetChanged?.invoke(data[value].first)
         }
+
+    var selectedItemBackgroundColor: Int = Color.WHITE
+        private set
     var onSelectedAssetChanged: ((assetDirectory: String?)->Unit)? = null
 
 
@@ -78,10 +81,11 @@ class ObjSelectorAdapter : RecyclerView.Adapter<ObjSelectorAdapter.ViewHolder>()
     inner class ViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
 
         fun bind(assetDirectory: String, isSelected: Boolean) {
-            itemView.icon.setImageBitmap(
-                BitmapFactory.decodeStream(
-                    itemView.context.assets.open("$assetDirectory${File.separator}icon.png")))
+            val bitmap = BitmapFactory.decodeStream(
+                itemView.context.assets.open("$assetDirectory${File.separator}icon.png"))
+            itemView.icon.setImageBitmap(bitmap)
             itemView.icon.setOnClickListener {
+                selectedItemBackgroundColor = bitmap.getPixel(0, 0)
                 selectedPosition = adapterPosition
             }
             itemView.setBackgroundColor(if (isSelected) Color.LTGRAY else Color.TRANSPARENT)
