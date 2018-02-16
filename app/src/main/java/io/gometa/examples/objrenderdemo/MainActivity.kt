@@ -30,8 +30,8 @@ import android.view.View
 import de.javagl.obj.Rect3D
 import io.gometa.support.obj.LightingParameters
 import io.gometa.support.obj.ObjRenderer
-import io.gometa.support.obj.Vec3
 import io.gometa.support.obj.Vec4
+import io.gometa.support.obj.VirtualObject
 import kotlinx.android.synthetic.main.activity_main.*
 import timber.log.Timber
 import javax.microedition.khronos.egl.EGLConfig
@@ -50,7 +50,6 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
 
     private val objSelectorAdapter = ObjSelectorAdapter()
     private var projectionRatio: Float = 1f
-    private val rotationMatrix = FloatArray(16)
     private val anchorMatrix = FloatArray(16)
     private val viewMatrix = FloatArray(16)
     private val projectionMatrix = FloatArray(16)
@@ -63,6 +62,8 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
     private var rect3D: Rect3D? = null
 
     private var lastTouchPoint: PointF? = null
+    private val rotationMatrix = FloatArray(16)
+    private val cameraPosition = FloatArray(3)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -93,11 +94,13 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
             renderer = it?.renderer
             rect3D = it?.renderer?.bounds
             rect3D?.let {
+                updateCamera(0f, .1f, -.8f)
                 Matrix.translateM(anchorMatrix, 0, -it.centerX, -it.centerY, -it.centerZ)
             }
             updateProjectionMatrix()
             Timber.d("rect3D = $rect3D")
         })
+        Matrix.setIdentityM(rotationMatrix, 0)
     }
 
     override fun onResume() {
@@ -122,27 +125,7 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
             Color.blue(objSelectorAdapter.selectedItemBackgroundColor) / 255f,
             1f)
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
-        val renderer = renderer
-        if (renderer == null) {
-            Matrix.setLookAtM(viewMatrix, 0,
-                0f, 1f, -DEFAULT_FAR_PLANE / 2f,
-                0f, 0f, 0f,
-                0f, 1f, 0f)
-            return
-        } else {
-            var diagonal = DEFAULT_FAR_PLANE
-            val center = Vec3()
-            rect3D?.let {
-                diagonal = it.diagonalLength
-                center.x = it.centerX
-                center.y = it.centerY
-                center.z = it.centerZ
-            }
-            Matrix.setLookAtM(viewMatrix, 0,
-                0f, .1f * diagonal, -NEAR_PLANE - .8f * diagonal,
-                0f, 0f, 0f,
-                0f, 1f, 0f)
-        }
+        val renderer = renderer ?: return
 
         GLES20.glEnable(GLES20.GL_DEPTH_TEST)
         GLES20.glDepthFunc(GLES20.GL_LEQUAL)
@@ -166,6 +149,21 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
     ////////////////////////////////////////////////////////////////////////////////////////////////
     // Private helpers
 
+    private fun updateCamera(x: Float, y: Float, z: Float) {
+        val objWidth = renderer?.bounds?.diagonalLength ?: DEFAULT_FAR_PLANE
+        cameraPosition[0] = x * objWidth
+        cameraPosition[1] = y * objWidth
+        cameraPosition[2] = z * objWidth
+        Matrix.setLookAtM(viewMatrix, 0,
+            cameraPosition[0], cameraPosition[1], cameraPosition[2],
+            0f, 0f, 0f,
+            0f, 1f, 0f)
+        lightingParameters.lightDirection.x = cameraPosition[0]
+        lightingParameters.lightDirection.y = cameraPosition[1]
+        lightingParameters.lightDirection.z = cameraPosition[2]
+        VirtualObject.normalizeVec3(lightingParameters.lightDirection.array)
+    }
+
     private fun rotateOnTouch(event: MotionEvent): Boolean {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
@@ -173,13 +171,9 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
             }
             MotionEvent.ACTION_MOVE -> {
                 lastTouchPoint?.let {
-                    val dx = (event.x - it.x)
-                    val dy = (event.y - it.y)
-                    Matrix.setIdentityM(anchorMatrix, 0)
-                    rect3D?.apply {
-                        Matrix.translateM(anchorMatrix, 0, -centerX, -centerY, -centerZ)
-                        Matrix.rotateM(anchorMatrix, 0, dx, 0f, 1f, 0f)
-                    }
+                    val dx = (event.x - it.x) * Math.PI * 2 / gl_surface.width
+                    val dy = (event.y - it.y) * Math.PI * 2 / gl_surface.height
+                    updateCamera(Math.sin(dx).toFloat(), Math.sin(dy).toFloat(), Math.cos(dx).toFloat())
                 }
             }
             MotionEvent.ACTION_UP -> {
